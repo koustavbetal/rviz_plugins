@@ -1,0 +1,13 @@
+<library path="polygon_editor">
+  <class name="polygon_editor/PolygonEditTool"
+         type="polygon_editor::PolygonEditTool"
+         base_class_type="rviz_common::Tool">
+    <description>Click in the scene to add polygon vertices; drag interactive markers to edit.</description>
+  </class>
+
+  <class name="polygon_editor/PolygonEditorPanel"
+         type="polygon_editor::PolygonEditorPanel"
+         base_class_type="rviz_common::Panel">
+    <description>New / Clear / Undo / Send-to-coverage-server controls for the polygon editor.</description>
+  </class>
+</library>

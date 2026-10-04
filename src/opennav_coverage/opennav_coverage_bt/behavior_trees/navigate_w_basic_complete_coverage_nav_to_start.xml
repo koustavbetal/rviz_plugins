@@ -1,0 +1,75 @@
+<!--
+  This Behavior Tree computes a complete coverage path over a selected space, navigates to the start point of the path, then follows the coverage path.
+  Can also take the coverage_path instead of Nav Path for segmented swaths from turns
+  for changes in operational modes (e.g. raise tool, turn off payload in turns not in field).
+
+  Field filepath is set by the Navigator plugin in the action request, but also may be hardcoded
+  or set using the polygons input port instead for dynamically computed values instead of from file.
+
+  It might be wise to still have the planner server on hand to connect to the coverage path in realistic uses.
+
+  This BT shows set polygon usage with the coverage server
+-->
+
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <RateController hz="30.0">
+      <Sequence name="NavigateWithoutReplanning">
+        <!-- May use:
+         'polygons="{field_polygon}" polygons_frame_id="{polygon_frame_id}"' if set polygon via NavigateCompleteCoverage
+         or file_field="{field_filepath}" if setting polygon file via NavigateCompleteCoverage -->
+
+        <!-- Compute path -->
+        <ComputeCoveragePath
+            nav_path="{path}"
+            polygons="{field_polygon}"
+            polygons_frame_id="{polygon_frame_id}"
+            error_code_id="{compute_coverage_error_code}"/>
+
+        <!-- Save original start -->
+        <GetPoseFromPath
+            path="{path}"
+            pose="{coverage_start_pose}"
+            index="0" />
+
+        <!-- Go to start -->
+        <ComputePathToPose
+            goal="{coverage_start_pose}"
+            path="{path_to_start}"
+            planner_id="GridBased"
+            error_code_id="{compute_path_error_code}"/>
+
+        <FollowPath
+            path="{path_to_start}"
+            controller_id="FollowPath"
+            error_code_id="{follow_path_error_code}"/>
+
+        <!-- Execute coverage -->
+        <FollowPath
+            path="{path}"
+            controller_id="FollowPath"
+            error_code_id="{follow_path_error_code}"/>
+        <!-- NEW: Spin 270° clockwise -->
+        <Spin
+            spin_dist="1.57"
+            error_code_id="{spin_error_code}" />
+
+        <!-- Wait 1 second -->
+        <Wait
+            wait_duration="1.0" />
+
+        <!-- Return to original start -->
+        <ComputePathToPose
+            goal="{coverage_start_pose}"
+            path="{path_to_dock}"
+            planner_id="GridBased"
+            error_code_id="{compute_path_error_code}"/>
+
+        <FollowPath
+            path="{path_to_dock}"
+            controller_id="FollowPath"
+            error_code_id="{follow_path_error_code}"/>
+      </Sequence>
+    </RateController>
+  </BehaviorTree>
+</root>

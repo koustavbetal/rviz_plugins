@@ -1,0 +1,117 @@
+<root BTCPP_format="4" main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <RateController hz="30.0">
+      <Sequence name="NavigateWithoutReplanning">
+
+        <!-- ================================================ -->
+        <!-- COMPUTE COVERAGE PATH                            -->
+        <!-- ================================================ -->
+        <ComputeCoveragePath
+          nav_path="{path}"
+          polygons="{field_polygon}"
+          polygons_frame_id="{polygon_frame_id}"
+          error_code_id="{compute_coverage_error_code}"/>
+
+        <!-- Save start pose -->
+        <GetPoseFromPath
+          path="{path}"
+          pose="{coverage_start_pose}"
+          index="0"/>
+
+        <!-- ================================================ -->
+        <!-- GO TO COVERAGE START                             -->
+        <!-- ================================================ -->
+        <ComputePathToPose
+          goal="{coverage_start_pose}"
+          path="{path_to_start}"
+          planner_id="GridBased"
+          error_code_id="{compute_path_error_code}"/>
+        <FollowPath
+          path="{path_to_start}"
+          controller_id="FollowPath"
+          error_code_id="{follow_path_error_code}"/>
+
+        <!-- ================================================ -->
+        <!-- EXECUTE COVERAGE WITH OBSTACLE RECOVERY          -->
+        <!-- ================================================ -->
+        <!--
+          RecoveryNode:
+            Child 1 (action)   : FollowPath on full coverage path.
+                                RPP auto-merges to closest pose on retry,
+                                so after skip-ahead it resumes from where it left off.
+            Child 2 (recovery) : Wait → clear costmap → nav to skip target →
+                                FollowPath on path_to_skip to physically get
+                                past the obstacle. Then Child 1 is retried.
+          3 retries: if still stuck after 3 skip attempts → RecoveryNode
+          returns FAILURE → outer Sequence aborts → falls through to
+          return-to-dock naturally.
+        -->
+        <RecoveryNode number_of_retries="3" name="ObstacleRecovery">
+
+          <!-- Child 1: main coverage execution -->
+          <FollowPath
+            path="{path}"
+            controller_id="FollowPath"
+            error_code_id="{follow_path_error_code}"/>
+
+          <!-- Child 2: skip-ahead recovery -->
+          <Sequence name="SkipAheadRecovery">
+
+            <!-- Wait — give humans a moment to move -->
+            <Wait wait_duration="3.0"/>
+
+            <!-- Clear stale local costmap traces -->
+            <ClearEntireCostmap
+              service_name="local_costmap/clear_entirely_local_costmap"/>
+
+            <!-- Get a pose ahead on the coverage path to skip to.
+                Index 5 is a small safe lookahead. If your path has
+                dense waypoints (e.g. 0.1m spacing), increase this.
+                Bounds risk is low here because if robot is near end
+                of path, FollowPath would have succeeded, not failed. -->
+            <GetPoseFromPath
+              path="{path}"
+              pose="{skip_target_pose}"
+              index="5"/>
+
+            <!-- Nav2 goal to skip target — goes around the obstacle -->
+            <ComputePathToPose
+              goal="{skip_target_pose}"
+              path="{path_to_skip}"
+              planner_id="GridBased"
+              error_code_id="{compute_path_error_code}"/>
+            <FollowPath
+              path="{path_to_skip}"
+              controller_id="FollowPath"
+              error_code_id="{follow_path_error_code}"/>
+
+          </Sequence>
+
+        </RecoveryNode>
+
+        <!-- ================================================ -->
+        <!-- POST COVERAGE                                    -->
+        <!-- ================================================ -->
+        <Spin
+          spin_dist="1.57"
+          error_code_id="{spin_error_code}"/>
+
+        <Wait wait_duration="1.0"/>
+
+        <!-- ================================================ -->
+        <!-- RETURN TO DOCK                                   -->
+        <!-- ================================================ -->
+        <ComputePathToPose
+          goal="{coverage_start_pose}"
+          path="{path_to_dock}"
+          planner_id="GridBased"
+          error_code_id="{compute_path_error_code}"/>
+        <FollowPath
+          path="{path_to_dock}"
+          controller_id="FollowPath"
+          error_code_id="{follow_path_error_code}"/>
+
+      </Sequence>
+    </RateController>
+  </BehaviorTree>
+</root>

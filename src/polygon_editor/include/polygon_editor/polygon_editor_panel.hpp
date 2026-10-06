@@ -1,6 +1,7 @@
 #pragma once
 
 #include <rviz_common/panel.hpp>
+#include <QString>
 
 class QPushButton;
 class QLabel;
@@ -20,6 +21,7 @@ public:
 
 private Q_SLOTS:
   void onNewClicked();
+  void onLoadClicked();
   void onUndoClicked();
   void onSendClicked();
   void refreshStatus();
@@ -28,11 +30,14 @@ private Q_SLOTS:
 
 private:
   void ensureAuxDisplays();
+  void setStatus(const QString & message);
 
   QPushButton * new_button_;
+  QPushButton * load_button_;
   QPushButton * undo_button_;
   QPushButton * send_button_;
   QLabel * status_label_;
+  QString status_message_;
   QDoubleSpinBox * headland_width_spin_;
   QDoubleSpinBox * swath_angle_spin_;
   QCheckBox * use_set_angle_check_;

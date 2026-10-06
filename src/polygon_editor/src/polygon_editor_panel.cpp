@@ -22,6 +22,7 @@ PolygonEditorPanel::PolygonEditorPanel(QWidget * parent)
 : rviz_common::Panel(parent)
 {
   new_button_ = new QPushButton("New Polygon");
+  load_button_ = new QPushButton("Load Polygon");
   undo_button_ = new QPushButton("Undo Last Point");
   send_button_ = new QPushButton("Send to Coverage Server");
   status_label_ = new QLabel("Vertices: 0");
@@ -38,6 +39,7 @@ PolygonEditorPanel::PolygonEditorPanel(QWidget * parent)
   swath_angle_spin_->setValue(0.0);
 
   use_set_angle_check_ = new QCheckBox("Use fixed swath angle");
+  use_set_angle_check_->setChecked(true);
 
   auto * layout = new QVBoxLayout;
 
@@ -48,6 +50,7 @@ PolygonEditorPanel::PolygonEditorPanel(QWidget * parent)
   layout->addLayout(form);
 
   layout->addWidget(new_button_);
+  layout->addWidget(load_button_);
   layout->addWidget(undo_button_);
   layout->addWidget(status_label_);
   layout->addWidget(send_button_);
@@ -55,6 +58,7 @@ PolygonEditorPanel::PolygonEditorPanel(QWidget * parent)
   setLayout(layout);
 
   connect(new_button_, &QPushButton::clicked, this, &PolygonEditorPanel::onNewClicked);
+  connect(load_button_, &QPushButton::clicked, this, &PolygonEditorPanel::onLoadClicked);
   connect(undo_button_, &QPushButton::clicked, this, &PolygonEditorPanel::onUndoClicked);
   connect(send_button_, &QPushButton::clicked, this, &PolygonEditorPanel::onSendClicked);
   connect(record_button_, &QPushButton::clicked, this, &PolygonEditorPanel::onRecordClicked);
@@ -118,17 +122,31 @@ void PolygonEditorPanel::ensureAuxDisplays()
 void PolygonEditorPanel::onNewClicked()
 {
   PolygonStore::instance().clear();
+  setStatus("New polygon started.");
+}
+
+void PolygonEditorPanel::onLoadClicked()
+{
+  double swath_angle_deg = 0.0;
+  if (!PolygonStore::instance().loadSavedPolygon(swath_angle_deg)) {
+    setStatus("Load failed — see ROS log.");
+    return;
+  }
+
+  swath_angle_spin_->setValue(swath_angle_deg);
+  setStatus("Polygon loaded.");
 }
 
 void PolygonEditorPanel::onUndoClicked()
 {
   PolygonStore::instance().undoLast();
+  setStatus("Removed last point.");
 }
 
 void PolygonEditorPanel::onSendClicked()
 {
   if (PolygonStore::instance().vertexCount() < 3) {
-    status_label_->setText("Need >= 3 vertices.");
+    setStatus("Need >= 3 vertices.");
     return;
   }
 
@@ -136,19 +154,25 @@ void PolygonEditorPanel::onSendClicked()
     headland_width_spin_->value(),
     swath_angle_spin_->value(),
     use_set_angle_check_->isChecked());
-  status_label_->setText(ok ? "Sent." : "Send failed — see ROS log.");
+  setStatus(ok ? "Sent." : "Send failed — see ROS log.");
 }
 void PolygonEditorPanel::refreshStatus()
 {
-  status_label_->setText(
-    QString("Vertices: %1").arg(PolygonStore::instance().vertexCount()));
+  const QString count =
+    QString("Vertices: %1").arg(PolygonStore::instance().vertexCount());
+  status_label_->setText(status_message_.isEmpty() ? count : status_message_ + " | " + count);
 }
 
 void PolygonEditorPanel::onRecordClicked()
 {
   bool ok = PolygonStore::instance().recordCurrentRobotPose();
-  status_label_->setText(
-    ok ? "Point recorded." : "TF lookup failed — check tree.");
+  setStatus(ok ? "Point recorded." : "TF lookup failed — check tree.");
+}
+
+void PolygonEditorPanel::setStatus(const QString & message)
+{
+  status_message_ = message;
+  refreshStatus();
 }
 }  // namespace polygon_editor
 

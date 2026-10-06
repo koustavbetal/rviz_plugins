@@ -5,6 +5,7 @@
 #include <rclcpp_action/rclcpp_action.hpp>
 
 #include <rclcpp/qos.hpp>
+#include <cmath>
 #include <exception>
 #include <fstream>
 #include <iomanip>
@@ -76,6 +77,100 @@ void PolygonStore::clear()
   }
   rebuildMarkers();
   publishLineStrip();
+}
+
+bool PolygonStore::loadSavedPolygon(double & swath_angle_deg)
+{
+  ensureInitialized();
+
+  std::string zone_path;
+  try {
+    zone_path =
+      ament_index_cpp::get_package_share_directory("polygon_editor") + "/config/zone.yaml";
+  } catch (const std::exception & ex) {
+    RCLCPP_ERROR(
+      node_->get_logger(), "Could not locate polygon_editor share directory: %s", ex.what());
+    return false;
+  }
+
+  std::ifstream zone_file(zone_path);
+  if (!zone_file.is_open()) {
+    RCLCPP_ERROR(node_->get_logger(), "Could not open zone file for reading: %s", zone_path.c_str());
+    return false;
+  }
+
+  std::vector<geometry_msgs::msg::Point> loaded_vertices;
+  double swath_angle_rad = 0.0;
+  bool found_swath_angle = false;
+  std::string line;
+  while (std::getline(zone_file, line)) {
+    const auto axis1_pos = line.find("axis1:");
+    const auto axis2_pos = line.find("axis2:");
+    if (axis1_pos != std::string::npos && axis2_pos != std::string::npos) {
+      geometry_msgs::msg::Point point;
+      std::istringstream axis1_stream(line.substr(axis1_pos + 6));
+      std::istringstream axis2_stream(line.substr(axis2_pos + 6));
+      if (!(axis1_stream >> point.x) || !(axis2_stream >> point.y) ||
+        !std::isfinite(point.x) || !std::isfinite(point.y))
+      {
+        RCLCPP_ERROR(node_->get_logger(), "Invalid polygon coordinate in zone file.");
+        return false;
+      }
+      point.z = 0.0;
+      loaded_vertices.push_back(point);
+    }
+
+    const auto angle_pos = line.find("default_swath_angle:");
+    if (angle_pos != std::string::npos) {
+      if (found_swath_angle) {
+        RCLCPP_ERROR(node_->get_logger(), "Zone file contains multiple swath angles.");
+        return false;
+      }
+      std::istringstream angle_stream(line.substr(angle_pos + 20));
+      if (!(angle_stream >> swath_angle_rad) || !std::isfinite(swath_angle_rad)) {
+        RCLCPP_ERROR(node_->get_logger(), "Invalid swath angle in zone file.");
+        return false;
+      }
+      found_swath_angle = true;
+    }
+  }
+
+  if (!zone_file.eof()) {
+    RCLCPP_ERROR(node_->get_logger(), "Failed while reading zone file: %s", zone_path.c_str());
+    return false;
+  }
+  if (!found_swath_angle || loaded_vertices.empty()) {
+    RCLCPP_ERROR(
+      node_->get_logger(), "Zone file must contain polygon coordinates and a swath angle.");
+    return false;
+  }
+
+  if (loaded_vertices.size() > 1) {
+    const auto & first = loaded_vertices.front();
+    const auto & last = loaded_vertices.back();
+    if (std::abs(first.x - last.x) < 1.0e-6 && std::abs(first.y - last.y) < 1.0e-6) {
+      loaded_vertices.pop_back();
+    }
+  }
+  if (loaded_vertices.size() < 3) {
+    RCLCPP_ERROR(node_->get_logger(), "Zone file must contain at least 3 polygon vertices.");
+    return false;
+  }
+
+  const double loaded_angle_deg = swath_angle_rad * 180.0 / M_PI;
+  if (!std::isfinite(loaded_angle_deg) || loaded_angle_deg < 0.0 || loaded_angle_deg > 360.0) {
+    RCLCPP_ERROR(node_->get_logger(), "Swath angle in zone file must be between 0 and 360 degrees.");
+    return false;
+  }
+
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    vertices_ = std::move(loaded_vertices);
+  }
+  rebuildMarkers();
+  publishLineStrip();
+  swath_angle_deg = loaded_angle_deg;
+  return true;
 }
 
 void PolygonStore::undoLast()
@@ -290,13 +385,19 @@ bool PolygonStore::sendToCoverageServer(
     RCLCPP_ERROR(node_->get_logger(), "Could not open zone file for writing: %s", zone_path.c_str());
     return false;
   }
-  zone_file << std::fixed << std::setprecision(4);
+  zone_file << "polygons:\n"
+            << "  - coordinates:\n"
+            << std::fixed << std::setprecision(4);
   for (const auto & coordinate : goal.polygons.front().coordinates) {
-    zone_file << "- {axis1: " << coordinate.axis1
+    zone_file << "      - {axis1: " << coordinate.axis1
               << ", axis2: " << coordinate.axis2 << "}\n";
   }
-  zone_file << "\ndefault_swath_angle: " << std::setprecision(6)
-            << swath_angle_deg * M_PI / 180.0 << "\n"
+  zone_file << "\ncoverage_server:\n"
+            << "  ros__parameters:\n"
+            << std::setprecision(6)
+            << "    default_swath_angle: " << swath_angle_deg * M_PI / 180.0 << "\n"
+            << std::setprecision(2)
+            << "    default_headland_width: " << headland_width << "\n"
             << "# ------------------------------------------------\n";
   zone_file.close();
   if (!zone_file) {

@@ -1,10 +1,15 @@
-- {axis1: 8.9988, axis2: 0.4374}
-- {axis1: 8.8319, axis2: -5.8462}
-- {axis1: 0.9195, axis2: -5.9727}
-- {axis1: -0.6348, axis2: -0.9801}
-- {axis1: 3.3616, axis2: 1.6761}
-- {axis1: 4.5019, axis2: 0.3987}
-- {axis1: 8.9988, axis2: 0.4374}
+polygons:
+  - coordinates:
+      - {axis1: 0.1217, axis2: -1.1541}
+      - {axis1: 0.1445, axis2: -5.2814}
+      - {axis1: 9.0214, axis2: -4.5985}
+      - {axis1: 9.5603, axis2: 0.3620}
+      - {axis1: 4.6541, axis2: 0.1551}
+      - {axis1: 4.5373, axis2: -1.1172}
+      - {axis1: 0.1217, axis2: -1.1541}
 
-default_swath_angle: 0.000000
+coverage_server:
+  ros__parameters:
+    default_swath_angle: 0.000000
+    default_headland_width: 0.30
 # ------------------------------------------------

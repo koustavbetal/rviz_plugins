@@ -39,7 +39,6 @@ cmake-build-f2c-debug/
 docs/api
 CATKIN_IGNORE
 
-
 authorized_keys
 cmake_install.cmake
 

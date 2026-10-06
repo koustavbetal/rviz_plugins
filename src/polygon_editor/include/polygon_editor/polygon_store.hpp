@@ -31,6 +31,7 @@ public:
 
   void addVertex(const geometry_msgs::msg::Point & p);
   void clear();
+  bool loadSavedPolygon(double & swath_angle_deg);
   void undoLast();
 
   geometry_msgs::msg::Polygon toPolygon() const;

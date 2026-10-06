@@ -1,9 +1,13 @@
 #include "polygon_editor/polygon_store.hpp"
+#include <ament_index_cpp/get_package_share_directory.hpp>
 #include <opennav_coverage_msgs/action/compute_coverage_path.hpp>
 #include <opennav_coverage_msgs/msg/coordinates.hpp>
 #include <rclcpp_action/rclcpp_action.hpp>
 
 #include <rclcpp/qos.hpp>
+#include <exception>
+#include <fstream>
+#include <iomanip>
 #include <sstream>
 
 namespace polygon_editor
@@ -269,6 +273,35 @@ bool PolygonStore::sendToCoverageServer(
     goal.swath_mode.best_angle = static_cast<float>(swath_angle_deg * M_PI / 180.0);
   } else {
     goal.swath_mode.step_angle = 0.017453f;
+  }
+
+  std::string zone_path;
+  try {
+    zone_path =
+      ament_index_cpp::get_package_share_directory("polygon_editor") + "/config/zone.yaml";
+  } catch (const std::exception & ex) {
+    RCLCPP_ERROR(
+      node_->get_logger(), "Could not locate polygon_editor share directory: %s", ex.what());
+    return false;
+  }
+
+  std::ofstream zone_file(zone_path, std::ios::trunc);
+  if (!zone_file.is_open()) {
+    RCLCPP_ERROR(node_->get_logger(), "Could not open zone file for writing: %s", zone_path.c_str());
+    return false;
+  }
+  zone_file << std::fixed << std::setprecision(4);
+  for (const auto & coordinate : goal.polygons.front().coordinates) {
+    zone_file << "- {axis1: " << coordinate.axis1
+              << ", axis2: " << coordinate.axis2 << "}\n";
+  }
+  zone_file << "\ndefault_swath_angle: " << std::setprecision(6)
+            << swath_angle_deg * M_PI / 180.0 << "\n"
+            << "# ------------------------------------------------\n";
+  zone_file.close();
+  if (!zone_file) {
+    RCLCPP_ERROR(node_->get_logger(), "Failed while writing zone file: %s", zone_path.c_str());
+    return false;
   }
 
   std::ostringstream goal_dump;

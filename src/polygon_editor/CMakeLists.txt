@@ -11,6 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_action REQUIRED)
 find_package(rviz_common REQUIRED)
@@ -36,6 +37,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 )
 
 ament_target_dependencies(${PROJECT_NAME}
+  ament_index_cpp
   rclcpp
   rclcpp_action
   tf2_ros
@@ -88,7 +90,7 @@ install(
 ament_export_include_directories(include)
 ament_export_libraries(${PROJECT_NAME})
 ament_export_dependencies(
-  rclcpp rclcpp_action rviz_common rviz_rendering pluginlib interactive_markers
+  ament_index_cpp rclcpp rclcpp_action rviz_common rviz_rendering pluginlib interactive_markers
   visualization_msgs geometry_msgs opennav_coverage_msgs
 )
 ament_export_targets(export_${PROJECT_NAME})

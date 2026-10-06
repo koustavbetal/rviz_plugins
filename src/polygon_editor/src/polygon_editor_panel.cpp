@@ -127,11 +127,16 @@ void PolygonEditorPanel::onUndoClicked()
 
 void PolygonEditorPanel::onSendClicked()
 {
+  if (PolygonStore::instance().vertexCount() < 3) {
+    status_label_->setText("Need >= 3 vertices.");
+    return;
+  }
+
   bool ok = PolygonStore::instance().sendToCoverageServer(
     headland_width_spin_->value(),
     swath_angle_spin_->value(),
     use_set_angle_check_->isChecked());
-  status_label_->setText(ok ? "Sent." : "Need >= 3 vertices.");
+  status_label_->setText(ok ? "Sent." : "Send failed — see ROS log.");
 }
 void PolygonEditorPanel::refreshStatus()
 {
